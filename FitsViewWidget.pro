@@ -9,6 +9,11 @@ QT       += widgets
 TARGET = FitsViewWidget
 TEMPLATE = lib
 
+QMAKE_CXXFLAGS += -std=c++11
+#QMAKE_CXXFLAGS += -std=c++11 -fopenmp
+#LIBS += -fopenmp
+#QMAKE_LFLAGS += -fopenmp
+
 DEFINES += FITSVIEWWIDGET_LIBRARY
 
 SOURCES += FitsViewWidget.cpp
@@ -20,3 +25,9 @@ unix {
     target.path = /usr/lib
     INSTALLS += target
 }
+
+
+unix:!macx: LIBS += -L/usr/lib64/ -lcfitsio
+
+INCLUDEPATH += /usr/include
+DEPENDPATH += /usr/include
