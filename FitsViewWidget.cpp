@@ -6,6 +6,7 @@
 
 #include<QImage>
 #include<QDebug>
+#include<QPointF>
 
 #include<fitsio.h>
 
@@ -110,13 +111,13 @@ static int robust_sigma(std::vector<double> &sample, double *sigma, double *medi
 
 FitsViewWidget::FitsViewWidget(QWidget *parent): QGraphicsView(parent),
     currentError(FitsViewWidget::OK),
-    currentFilename(""),
+    currentFilename(""), imageIsLoaded(false),
     currentImage_buffer(std::unique_ptr<double[]>()), currentScaledImage_buffer(std::unique_ptr<uchar[]>()),
     currentImage_npix(0),
     lowCutSigmas(2.0), highCutSigmas(5.0),
     currentLowCut(0.0), currentHighCut(0.0),
     currentCT(QVector<QRgb>(FITS_VIEW_COLOR_TABLE_LENGTH)), currentCT_name(FitsViewWidget::CT_NEGBW),
-    currentPixmap(QPixmap()), currentZoomFactor(1.0),
+    currentPixmap(QPixmap()), currentZoomFactor(1.0), zoomIncrement(2.0),
     maxSampleLength(FITS_VIEW_MAX_SAMPLE_LENGTH)
 {
 
@@ -131,6 +132,13 @@ FitsViewWidget::FitsViewWidget(QWidget *parent): QGraphicsView(parent),
     this->setTransform(tr);                  // the origin to bottom-left conner
 
     setCursor(Qt::CrossCursor);
+
+    setMouseTracking(true);
+
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContentsOnFirstShow);
+
 }
 
 
@@ -143,6 +151,8 @@ FitsViewWidget::~FitsViewWidget()
 
 void FitsViewWidget::load(const QString fits_filename, const bool autoscale)
 {
+    imageIsLoaded = false;
+
     QString str = fits_filename.trimmed();
     if ( str.isEmpty() || str.isNull() ) return;
 
@@ -195,6 +205,8 @@ void FitsViewWidget::load(const QString fits_filename, const bool autoscale)
         return;
     }
 
+    imageIsLoaded = true;
+
     double *buffer = currentImage_buffer.get();
     auto minmax = std::minmax_element(buffer,buffer+currentImage_npix);
     currentImageMinVal = *minmax.first;
@@ -217,6 +229,8 @@ void FitsViewWidget::load(const QString fits_filename, const bool autoscale)
 void FitsViewWidget::rescale(const double lcuts, const double hcuts)
 {
     if ( (currentImage_buffer == nullptr) || (currentImage_npix == 0) ) return;
+
+    currentError = FitsViewWidget::OK;
 
     if ( lcuts >= hcuts ) {
         currentError = FitsViewWidget::BadCutValue;
@@ -282,11 +296,15 @@ void FitsViewWidget::showImage()
 
     scene->clear();
 
-    scene->setSceneRect(0,0,currentImage_dim[0],currentImage_dim[1]);
+    //    scene->setSceneRect(0,0,currentImage_dim[0],currentImage_dim[1]);
+    scene->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
+//    scene->setSceneRect(-100,-100,2*currentImage_dim[0],2*currentImage_dim[1]);
 
     fitsImagePixmapItem = scene->addPixmap(currentPixmap);
+    fitsImagePixmapItem->setPos(-0.5*currentImage_dim[0],-0.5*currentImage_dim[1]);
 
-    this->centerOn(fitsImagePixmapItem);
+    centerOn(0,0);
+//    this->centerOn(fitsImagePixmapItem);
     this->fitInView(fitsImagePixmapItem,Qt::KeepAspectRatio);
     this->scale(currentZoomFactor,currentZoomFactor);
 
@@ -300,6 +318,11 @@ int FitsViewWidget::getError() const
     return currentError;
 }
 
+
+bool FitsViewWidget::isImageLoaded() const
+{
+    return imageIsLoaded;
+}
 
 
 QString FitsViewWidget::getCurrentFilename() const
@@ -340,6 +363,51 @@ FitsViewWidget::ColorTable FitsViewWidget::getColorTable() const
 void FitsViewWidget::setMaxSampleLength(size_t nelem)
 {
     maxSampleLength = nelem;
+}
+
+
+
+        /*  PROTECTED METHODS  */
+
+void FitsViewWidget::mouseMoveEvent(QMouseEvent *event)
+{
+    if ( !imageIsLoaded ) return;
+}
+
+
+void FitsViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    if ( !imageIsLoaded ) return;
+
+    QPointF pos =  mapToScene( event->pos() );
+
+//    scene->clear();
+//    fitsImagePixmapItem = scene->addPixmap(currentPixmap);
+
+    centerOn(pos);
+    if ( event->button() == Qt::LeftButton ) {
+            scale(zoomIncrement,zoomIncrement);
+    }
+    if ( event->button() == Qt::RightButton ) {
+            scale(1.0/zoomIncrement,1.0/zoomIncrement);
+    }
+
+    qDebug() << pos << "(" << mapFromScene(event->pos()) << ")";
+}
+
+
+void FitsViewWidget::mousePressEvent(QMouseEvent *event)
+{
+}
+
+
+void FitsViewWidget::mouseReleaseEvent(QMouseEvent *event)
+{
+}
+
+
+void FitsViewWidget::keyPressEvent(QKeyEvent *event)
+{
 }
 
 

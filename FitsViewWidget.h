@@ -13,6 +13,7 @@
 #include<QRgb>
 #include<QPixmap>
 #include<QPointer>
+#include<QMouseEvent>
 
 #define FITS_VIEW_COLOR_TABLE_LENGTH 256
 #define FITS_VIEW_MAX_SAMPLE_LENGTH 10000
@@ -31,6 +32,8 @@ public:
     ~FitsViewWidget();
 
     int getError() const;
+
+    bool isImageLoaded() const;
 
     void getCuts(double *lcuts, double *hcuts);
 
@@ -53,10 +56,19 @@ signals:
     void cutsAreChanged(double lcut, double hcut);
     void ColorTableIsChanged(FitsViewWidget::ColorTable ct);
 
+protected:
+    virtual void mouseMoveEvent(QMouseEvent* event);
+    virtual void mousePressEvent(QMouseEvent* event);
+    virtual void mouseReleaseEvent(QMouseEvent* event);
+    virtual void mouseDoubleClickEvent(QMouseEvent* event);
+    virtual void keyPressEvent(QKeyEvent* event);
+
+
 private:
     int currentError;
     QString currentFilename;
 
+    bool imageIsLoaded;
     std::unique_ptr<double[]> currentImage_buffer;
     std::unique_ptr<uchar[]> currentScaledImage_buffer;
     size_t currentImage_npix;
@@ -76,6 +88,7 @@ private:
     QPointer<QGraphicsScene> scene;
     QGraphicsPixmapItem *fitsImagePixmapItem;
     qreal currentZoomFactor;
+    qreal zoomIncrement;
 
     size_t maxSampleLength;
 
