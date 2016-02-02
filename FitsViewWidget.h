@@ -14,9 +14,12 @@
 #include<QPixmap>
 #include<QPointer>
 #include<QMouseEvent>
+#include<QTimer>
 
 #define FITS_VIEW_COLOR_TABLE_LENGTH 256
 #define FITS_VIEW_MAX_SAMPLE_LENGTH 10000
+#define FITS_VIEW_DEFAULT_RESIZE_TIMEOUT 1000 // 1/4 second
+//#define FITS_VIEW_DEFAULT_RESIZE_TIMEOUT 250 // 1/4 second
 
 class FITSVIEWWIDGETSHARED_EXPORT FitsViewWidget: public QGraphicsView
 {
@@ -61,8 +64,13 @@ protected:
     virtual void mousePressEvent(QMouseEvent* event);
     virtual void mouseReleaseEvent(QMouseEvent* event);
     virtual void mouseDoubleClickEvent(QMouseEvent* event);
+    virtual void wheelEvent(QWheelEvent* event);
     virtual void keyPressEvent(QKeyEvent* event);
+    virtual void resizeEvent(QResizeEvent *event);
 
+
+private slots:
+    void resizeTimeout();
 
 private:
     int currentError;
@@ -92,6 +100,8 @@ private:
 
     size_t maxSampleLength;
 
+    QPointer<QTimer> resizeTimer;
+    QSize oldSize;
 };
 
 #endif // FITSVIEWWIDGET_H

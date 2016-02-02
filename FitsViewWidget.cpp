@@ -118,7 +118,8 @@ FitsViewWidget::FitsViewWidget(QWidget *parent): QGraphicsView(parent),
     currentLowCut(0.0), currentHighCut(0.0),
     currentCT(QVector<QRgb>(FITS_VIEW_COLOR_TABLE_LENGTH)), currentCT_name(FitsViewWidget::CT_NEGBW),
     currentPixmap(QPixmap()), currentZoomFactor(1.0), zoomIncrement(2.0),
-    maxSampleLength(FITS_VIEW_MAX_SAMPLE_LENGTH)
+    maxSampleLength(FITS_VIEW_MAX_SAMPLE_LENGTH),
+    oldSize(QSize(-1,-1))
 {
 
     currentImage_dim[0] = 0, currentImage_dim[1] = 0;
@@ -139,6 +140,8 @@ FitsViewWidget::FitsViewWidget(QWidget *parent): QGraphicsView(parent),
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContentsOnFirstShow);
 
+    resizeTimer = new QTimer(this);
+    connect(resizeTimer,SIGNAL(timeout()),this,SLOT(resizeTimeout()));
 }
 
 
@@ -371,28 +374,49 @@ void FitsViewWidget::setMaxSampleLength(size_t nelem)
 
 void FitsViewWidget::mouseMoveEvent(QMouseEvent *event)
 {
-    if ( !imageIsLoaded ) return;
+    if ( !currentScaledImage_buffer ) return;
 }
 
 
 void FitsViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
 {
-    if ( !imageIsLoaded ) return;
+    if ( !currentScaledImage_buffer ) return;
 
     QPointF pos =  mapToScene( event->pos() );
-
-//    scene->clear();
-//    fitsImagePixmapItem = scene->addPixmap(currentPixmap);
 
     centerOn(pos);
     if ( event->button() == Qt::LeftButton ) {
             scale(zoomIncrement,zoomIncrement);
+            currentZoomFactor *= zoomIncrement;
     }
     if ( event->button() == Qt::RightButton ) {
-            scale(1.0/zoomIncrement,1.0/zoomIncrement);
+            currentZoomFactor /= zoomIncrement;
+            if ( currentZoomFactor < 1.0 ) {
+                currentZoomFactor = 1.0;
+            } else {
+                scale(1.0/zoomIncrement,1.0/zoomIncrement);
+            }
     }
 
     qDebug() << pos << "(" << mapFromScene(event->pos()) << ")";
+}
+
+
+void FitsViewWidget::wheelEvent(QWheelEvent *event)
+{
+    if ( !currentScaledImage_buffer ) return;
+    int numDegrees = event->delta() / 8;
+
+    int numSteps = numDegrees / 15; // see QWheelEvent documentation
+
+    qreal factor = 1.0+qreal(numSteps)*0.1;
+    currentZoomFactor *= factor;
+    if ( currentZoomFactor < 1.0 ) {
+        currentZoomFactor = 1.0;
+        fitInView(fitsImagePixmapItem,Qt::KeepAspectRatio);
+        return;
+    }
+    scale(factor,factor);
 }
 
 
@@ -411,6 +435,35 @@ void FitsViewWidget::keyPressEvent(QKeyEvent *event)
 }
 
 
+void FitsViewWidget::resizeEvent(QResizeEvent *event)
+{
+    if ( !currentScaledImage_buffer ) return;
+    if ( (event->oldSize().width() < 0) || (event->oldSize().height() < 0) ) return;
+
+    qreal hfactor = 1.0*event->size().height()/event->oldSize().height();
+    qreal wfactor = 1.0*event->size().width()/event->oldSize().width();
+
+    qreal factor = (hfactor >= wfactor) ? wfactor : hfactor;
+
+    scale(factor,factor);
+
+//    qDebug() << event->size() << event->oldSize();
+//    qDebug() << "Factor = " << factor;
+
+    resizeTimer->stop();
+    oldSize = event->size();
+    resizeTimer->start();
+}
+
+
+        /*  PRIVATE SLOTS  */
+
+void FitsViewWidget::resizeTimeout()
+{
+    resizeTimer->stop();
+
+    qDebug() << this->size() << oldSize;
+}
 
         /*  PRIVATE METHODS  */
 
