@@ -299,9 +299,8 @@ void FitsViewWidget::showImage()
 
     scene->clear();
 
-    //    scene->setSceneRect(0,0,currentImage_dim[0],currentImage_dim[1]);
+//    scene->setSceneRect(0,0,currentImage_dim[0],currentImage_dim[1]);
     scene->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
-//    scene->setSceneRect(-100,-100,2*currentImage_dim[0],2*currentImage_dim[1]);
 
     fitsImagePixmapItem = scene->addPixmap(currentPixmap);
     fitsImagePixmapItem->setPos(-0.5*currentImage_dim[0],-0.5*currentImage_dim[1]);
@@ -311,6 +310,7 @@ void FitsViewWidget::showImage()
     this->fitInView(fitsImagePixmapItem,Qt::KeepAspectRatio);
     this->scale(currentZoomFactor,currentZoomFactor);
 
+    currentViewedSubImage = mapToScene(viewport()->rect()).boundingRect();
 }
 
 
@@ -385,6 +385,7 @@ void FitsViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
     QPointF pos =  mapToScene( event->pos() );
 
     centerOn(pos);
+
     if ( event->button() == Qt::LeftButton ) {
             scale(zoomIncrement,zoomIncrement);
             currentZoomFactor *= zoomIncrement;
@@ -438,23 +439,31 @@ void FitsViewWidget::keyPressEvent(QKeyEvent *event)
 void FitsViewWidget::resizeEvent(QResizeEvent *event)
 {
     if ( !currentScaledImage_buffer ) return;
-    if ( (event->oldSize().width() < 0) || (event->oldSize().height() < 0) ) return;
+    if ( (event->oldSize().width() < 0) || (event->oldSize().height() < 0) ) {
+        oldSize = event->size();
+        return;
+    }
 
-    qreal hfactor = 1.0*event->size().height()/event->oldSize().height();
-    qreal wfactor = 1.0*event->size().width()/event->oldSize().width();
 
-    qreal factor = (hfactor >= wfactor) ? wfactor : hfactor;
+//    qreal hfactor = 1.0*event->size().height()/event->oldSize().height();
+//    qreal wfactor = 1.0*event->size().width()/event->oldSize().width();
 
-    scale(factor,factor);
+//    qreal factor = (hfactor >= wfactor) ? wfactor : hfactor;
+
+//    scale(factor,factor);
 
 //    qDebug() << event->size() << event->oldSize();
 //    qDebug() << "Factor = " << factor;
 
     resizeTimer->stop();
-    oldSize = event->size();
-    resizeTimer->start();
+    resizeTimer->start(FITS_VIEW_DEFAULT_RESIZE_TIMEOUT);
 }
 
+
+void FitsViewWidget::showEvent(QShowEvent *event)
+{
+    oldSize = this->size();
+}
 
         /*  PRIVATE SLOTS  */
 
@@ -462,7 +471,32 @@ void FitsViewWidget::resizeTimeout()
 {
     resizeTimer->stop();
 
-    qDebug() << this->size() << oldSize;
+//    qreal hfactor = 1.0*this->size().height()/oldSize.height();
+//    qreal wfactor = 1.0*this->size().width()/oldSize.width();
+
+//    qreal factor = (hfactor > wfactor) ? wfactor : hfactor;
+
+//    qreal ratio = 1.0*this->size().height()/this->size().width();
+//    qreal old_ratio = 1.0*oldSize.height()/oldSize.width();
+
+//    factor *= ratio/old_ratio;
+
+    qreal factor = 1.0*this->size().width()/oldSize.width();
+
+    qreal ratio = 1.0*currentViewedSubImage.width()/currentViewedSubImage.height();
+
+    if ( currentViewedSubImage.height()*factor < currentViewedSubImage.width()*factor/ratio ) {
+        factor = 1.0*this->size().height()/oldSize.height()/ratio;
+    }
+
+    scale(factor,factor);
+
+    qDebug() << this->size() << oldSize << "; factor = " << factor << " (ratio = " << ratio << ")";
+    qDebug() << currentViewedSubImage;
+//    qDebug() << mapToScene(viewport()->rect()).boundingRect();
+
+    oldSize = this->size();
+    currentViewedSubImage = mapToScene(viewport()->rect()).boundingRect();
 }
 
         /*  PRIVATE METHODS  */

@@ -15,11 +15,13 @@
 #include<QPointer>
 #include<QMouseEvent>
 #include<QTimer>
+#include<QRectF>
+
 
 #define FITS_VIEW_COLOR_TABLE_LENGTH 256
 #define FITS_VIEW_MAX_SAMPLE_LENGTH 10000
-#define FITS_VIEW_DEFAULT_RESIZE_TIMEOUT 1000 // 1/4 second
-//#define FITS_VIEW_DEFAULT_RESIZE_TIMEOUT 250 // 1/4 second
+//#define FITS_VIEW_DEFAULT_RESIZE_TIMEOUT 1000 // 1/4 second
+#define FITS_VIEW_DEFAULT_RESIZE_TIMEOUT 250 // 1/4 second
 
 class FITSVIEWWIDGETSHARED_EXPORT FitsViewWidget: public QGraphicsView
 {
@@ -67,6 +69,7 @@ protected:
     virtual void wheelEvent(QWheelEvent* event);
     virtual void keyPressEvent(QKeyEvent* event);
     virtual void resizeEvent(QResizeEvent *event);
+    virtual void showEvent(QShowEvent* event);
 
 
 private slots:
@@ -102,6 +105,7 @@ private:
 
     QPointer<QTimer> resizeTimer;
     QSize oldSize;
+    QRectF currentViewedSubImage;
 };
 
 #endif // FITSVIEWWIDGET_H
