@@ -119,12 +119,14 @@ FitsViewWidget::FitsViewWidget(QWidget *parent): QGraphicsView(parent),
     currentCT(QVector<QRgb>(FITS_VIEW_COLOR_TABLE_LENGTH)), currentCT_name(FitsViewWidget::CT_NEGBW),
     currentPixmap(QPixmap()), currentZoomFactor(1.0), zoomIncrement(2.0),
     maxSampleLength(FITS_VIEW_MAX_SAMPLE_LENGTH),
-    oldSize(QSize(-1,-1))
+    oldSize(QSize(-1,-1)),
+    currentViewedSubImageCenter(QPointF(0,0))
 {
 
     currentImage_dim[0] = 0, currentImage_dim[1] = 0;
 
-    generateCT(FitsViewWidget::CT_NEGBW);
+    generateCT(currentCT_name);
+//    setColorTable(FitsViewWidget::CT_NEGBW);
 
     scene = new QGraphicsScene(this);
     setScene(scene);
@@ -142,6 +144,8 @@ FitsViewWidget::FitsViewWidget(QWidget *parent): QGraphicsView(parent),
 
     resizeTimer = new QTimer(this);
     connect(resizeTimer,SIGNAL(timeout()),this,SLOT(resizeTimeout()));
+
+    connect(this,SIGNAL(ColorTableIsChanged(FitsViewWidget::ColorTable)),this,SLOT(showImage()));
 }
 
 
@@ -305,12 +309,15 @@ void FitsViewWidget::showImage()
     fitsImagePixmapItem = scene->addPixmap(currentPixmap);
     fitsImagePixmapItem->setPos(-0.5*currentImage_dim[0],-0.5*currentImage_dim[1]);
 
-    centerOn(0,0);
+//    centerOn(0,0);
 //    this->centerOn(fitsImagePixmapItem);
     this->fitInView(fitsImagePixmapItem,Qt::KeepAspectRatio);
+    this->centerOn(currentViewedSubImageCenter);
     this->scale(currentZoomFactor,currentZoomFactor);
 
     currentViewedSubImage = mapToScene(viewport()->rect()).boundingRect();
+    if ( currentViewedSubImage.width() > currentImage_dim[0] ) currentViewedSubImage.setWidth(currentImage_dim[0]);
+    if ( currentViewedSubImage.height() > currentImage_dim[1] ) currentViewedSubImage.setHeight(currentImage_dim[1]);
 }
 
 
@@ -353,6 +360,7 @@ void FitsViewWidget::setColorTable(FitsViewWidget::ColorTable ct)
     generateCT(ct);
     if ( currentError != FitsViewWidget::OK ) return;
     currentCT_name = ct;
+
     emit ColorTableIsChanged(ct);
 }
 
@@ -382,9 +390,11 @@ void FitsViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
 {
     if ( !currentScaledImage_buffer ) return;
 
-    QPointF pos =  mapToScene( event->pos() );
+//    QPointF pos =  mapToScene( event->pos() );
+    currentViewedSubImageCenter =  mapToScene( event->pos() );
 
-    centerOn(pos);
+//    centerOn(pos);
+    centerOn(currentViewedSubImageCenter);
 
     if ( event->button() == Qt::LeftButton ) {
             scale(zoomIncrement,zoomIncrement);
@@ -399,7 +409,11 @@ void FitsViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
             }
     }
 
-    qDebug() << pos << "(" << mapFromScene(event->pos()) << ")";
+    currentViewedSubImage = mapToScene(viewport()->rect()).boundingRect();
+    if ( currentViewedSubImage.width() > currentImage_dim[0] ) currentViewedSubImage.setWidth(currentImage_dim[0]);
+    if ( currentViewedSubImage.height() > currentImage_dim[1] ) currentViewedSubImage.setHeight(currentImage_dim[1]);
+
+//    qDebug() << pos << "(" << mapFromScene(event->pos()) << ")";
 }
 
 
@@ -414,10 +428,15 @@ void FitsViewWidget::wheelEvent(QWheelEvent *event)
     currentZoomFactor *= factor;
     if ( currentZoomFactor < 1.0 ) {
         currentZoomFactor = 1.0;
-        fitInView(fitsImagePixmapItem,Qt::KeepAspectRatio);
+//        fitInView(fitsImagePixmapItem,Qt::KeepAspectRatio);
         return;
     }
     scale(factor,factor);
+
+    currentViewedSubImage = mapToScene(viewport()->rect()).boundingRect();
+    if ( currentViewedSubImage.width() > currentImage_dim[0] ) currentViewedSubImage.setWidth(currentImage_dim[0]);
+    if ( currentViewedSubImage.height() > currentImage_dim[1] ) currentViewedSubImage.setHeight(currentImage_dim[1]);
+
 }
 
 
@@ -433,6 +452,18 @@ void FitsViewWidget::mouseReleaseEvent(QMouseEvent *event)
 
 void FitsViewWidget::keyPressEvent(QKeyEvent *event)
 {
+    switch ( event->key() ) {
+        case Qt::Key_Escape: {
+            currentZoomFactor = 1.0;
+            fitInView(fitsImagePixmapItem,Qt::KeepAspectRatio);
+            currentViewedSubImageCenter.setX(0.0);
+            currentViewedSubImageCenter.setY(0.0);
+            break;
+        }
+        default: {
+            qDebug() << "Pressed key: " << event->key();
+        }
+    }
 }
 
 
@@ -471,32 +502,29 @@ void FitsViewWidget::resizeTimeout()
 {
     resizeTimer->stop();
 
-//    qreal hfactor = 1.0*this->size().height()/oldSize.height();
-//    qreal wfactor = 1.0*this->size().width()/oldSize.width();
+    qDebug() << currentViewedSubImage.adjusted(currentImage_dim[0]/2,currentImage_dim[1]/2,currentImage_dim[0]/2,currentImage_dim[1]/2);
 
-//    qreal factor = (hfactor > wfactor) ? wfactor : hfactor;
+    QRectF rr = mapToScene(this->geometry()).boundingRect();
 
-//    qreal ratio = 1.0*this->size().height()/this->size().width();
-//    qreal old_ratio = 1.0*oldSize.height()/oldSize.width();
+    qreal hfactor = 1.0*rr.height()/currentViewedSubImage.height();
+    qreal wfactor = 1.0*rr.width()/currentViewedSubImage.width();
 
-//    factor *= ratio/old_ratio;
-
-    qreal factor = 1.0*this->size().width()/oldSize.width();
-
-    qreal ratio = 1.0*currentViewedSubImage.width()/currentViewedSubImage.height();
-
-    if ( currentViewedSubImage.height()*factor < currentViewedSubImage.width()*factor/ratio ) {
-        factor = 1.0*this->size().height()/oldSize.height()/ratio;
-    }
+    qreal factor = (hfactor > wfactor) ? wfactor : hfactor;
 
     scale(factor,factor);
 
-    qDebug() << this->size() << oldSize << "; factor = " << factor << " (ratio = " << ratio << ")";
-    qDebug() << currentViewedSubImage;
+    currentZoomFactor *= factor;
+
+//    qDebug() << this->size() << oldSize << "; factor = " << factor;
 //    qDebug() << mapToScene(viewport()->rect()).boundingRect();
 
     oldSize = this->size();
     currentViewedSubImage = mapToScene(viewport()->rect()).boundingRect();
+    if ( currentViewedSubImage.width() > currentImage_dim[0] ) currentViewedSubImage.setWidth(currentImage_dim[0]);
+    if ( currentViewedSubImage.height() > currentImage_dim[1] ) currentViewedSubImage.setHeight(currentImage_dim[1]);
+
+    qDebug() << currentViewedSubImage.adjusted(currentImage_dim[0]/2,currentImage_dim[1]/2,currentImage_dim[0]/2,currentImage_dim[1]/2);
+//    qDebug() << rr;
 }
 
         /*  PRIVATE METHODS  */

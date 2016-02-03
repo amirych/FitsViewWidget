@@ -16,6 +16,7 @@
 #include<QMouseEvent>
 #include<QTimer>
 #include<QRectF>
+#include<QPointF>
 
 
 #define FITS_VIEW_COLOR_TABLE_LENGTH 256
@@ -106,6 +107,7 @@ private:
     QPointer<QTimer> resizeTimer;
     QSize oldSize;
     QRectF currentViewedSubImage;
+    QPointF currentViewedSubImageCenter;
 };
 
 #endif // FITSVIEWWIDGET_H
