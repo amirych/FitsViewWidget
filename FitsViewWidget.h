@@ -8,6 +8,8 @@
 #include<QGraphicsView>
 #include<QGraphicsScene>
 #include<QGraphicsItem>
+#include<QGraphicsRectItem>
+#include<QGraphicsPixmapItem>
 #include<QVector>
 #include<vector>
 #include<QRgb>
@@ -17,7 +19,7 @@
 #include<QTimer>
 #include<QRectF>
 #include<QPointF>
-
+#include<QPen>
 
 #define FITS_VIEW_COLOR_TABLE_LENGTH 256
 #define FITS_VIEW_MAX_SAMPLE_LENGTH 10000
@@ -52,6 +54,14 @@ public:
 
     void setMaxSampleLength(size_t nelem);
 
+    // re-declarate centerOn-family of methods
+    void centerOn(qreal x, qreal y);
+    void centerOn(QPointF &pos);
+
+    QPointF getImageCenter() const;
+
+    void setRubberBandPen(const QPen &pen);
+
 public slots:
     void load(const QString fits_filename, const bool autoscale = true);
     void rescale(const double lcuts, const double hcuts);
@@ -61,6 +71,7 @@ signals:
     void fitsViewError(int err);
     void cutsAreChanged(double lcut, double hcut);
     void ColorTableIsChanged(FitsViewWidget::ColorTable ct);
+    void RegionWasDeselected();
 
 protected:
     virtual void mouseMoveEvent(QMouseEvent* event);
@@ -70,7 +81,12 @@ protected:
     virtual void wheelEvent(QWheelEvent* event);
     virtual void keyPressEvent(QKeyEvent* event);
     virtual void resizeEvent(QResizeEvent *event);
-    virtual void showEvent(QShowEvent* event);
+
+    QGraphicsRectItem *rubberBand;
+    QPointF rubberBandOrigin, rubberBandEnd;
+    QPen rubberBandPen;
+    bool rubberBandIsActive;
+    bool rubberBandIsShown;
 
 
 private slots:
@@ -105,7 +121,6 @@ private:
     size_t maxSampleLength;
 
     QPointer<QTimer> resizeTimer;
-    QSize oldSize;
     QRectF currentViewedSubImage;
     QPointF currentViewedSubImageCenter;
 };
