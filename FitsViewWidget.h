@@ -23,10 +23,10 @@
 
 #define FITS_VIEW_COLOR_TABLE_LENGTH 256
 #define FITS_VIEW_MAX_SAMPLE_LENGTH 10000
-//#define FITS_VIEW_DEFAULT_RESIZE_TIMEOUT 1000 // 1/4 second
 #define FITS_VIEW_DEFAULT_RESIZE_TIMEOUT 250 // 1/4 second
+#define FITS_VIEW_IMAGE_MARGIN 2 // margin between viewed image and border of viewport
 
-class FITSVIEWWIDGETSHARED_EXPORT FitsViewWidget: public QGraphicsView
+class FITSVIEWWIDGETSHARED_EXPORT FitsViewWidget: public QWidget
 {
 
     Q_OBJECT
@@ -54,13 +54,17 @@ public:
 
     void setMaxSampleLength(size_t nelem);
 
-    // re-declarate centerOn-family of methods
     void centerOn(qreal x, qreal y);
     void centerOn(QPointF &pos);
 
     QPointF getImageCenter() const;
 
     void setRubberBandPen(const QPen &pen);
+
+    void zoomFitInView();
+    void setZoom(const qreal zoom_factor);  // absolute zoom factor
+    void incrementZoom(const qreal zoom_inc);
+    qreal getZoom() const;
 
 public slots:
     void load(const QString fits_filename, const bool autoscale = true);
@@ -81,6 +85,10 @@ protected:
     virtual void wheelEvent(QWheelEvent* event);
     virtual void keyPressEvent(QKeyEvent* event);
     virtual void resizeEvent(QResizeEvent *event);
+
+    virtual bool event(QEvent *event);
+
+    QGraphicsView *view;
 
     QGraphicsRectItem *rubberBand;
     QPointF rubberBandOrigin, rubberBandEnd;
