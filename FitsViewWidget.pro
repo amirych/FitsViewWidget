@@ -16,10 +16,12 @@ QMAKE_CXXFLAGS += -std=c++11
 
 DEFINES += FITSVIEWWIDGET_LIBRARY
 
-SOURCES += FitsViewWidget.cpp
+SOURCES += FitsViewWidget.cpp \
+    viewpanel.cpp
 
 HEADERS += FitsViewWidget.h\
-        fitsviewwidget_global.h
+        fitsviewwidget_global.h \
+    viewpanel.h
 
 unix {
     target.path = /usr/lib

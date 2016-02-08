@@ -132,9 +132,10 @@ FitsViewWidget::FitsViewWidget(QWidget *parent): QWidget(parent),
     generateCT(CT_BW);
 //    setColorTable(FitsViewWidget::CT_NEGBW);
 
-    view = new QGraphicsView(this);
-    scene = new QGraphicsScene(this);
-    view->setScene(scene);
+    view = new ViewPanel(this);
+//    view = new QGraphicsView(this);
+//    scene = new QGraphicsScene(this);
+//    view->setScene(scene);
 
     QTransform tr(1.0,0.0,0.0,-1.0,0.0,0.0); // reflection about x-axis to put
     view->setTransform(tr);                  // the origin to bottom-left conner
@@ -244,7 +245,8 @@ void FitsViewWidget::load(const QString fits_filename, const bool autoscale)
     }
 
     // redefine scene size
-    scene->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
+//    scene->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
+    view->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
 
     // compute zoom factor for entire image viewing
 //    qDebug() << view->viewport()->width();
@@ -332,12 +334,14 @@ void FitsViewWidget::showImage()
 
     currentPixmap = QPixmap::fromImage(im);
 
-    scene->clear();
+//    scene->clear();
 
-    scene->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
+//    scene->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
 
-    fitsImagePixmapItem = scene->addPixmap(currentPixmap);
-    fitsImagePixmapItem->setPos(-0.5*currentImage_dim[0],-0.5*currentImage_dim[1]);
+//    fitsImagePixmapItem = scene->addPixmap(currentPixmap);
+//    fitsImagePixmapItem->setPos(-0.5*currentImage_dim[0],-0.5*currentImage_dim[1]);
+
+    fitsImagePixmapItem = view->showPixmap(&currentPixmap);
 
 
 //    view->fitInView(fitsImagePixmapItem,Qt::KeepAspectRatio);
@@ -531,18 +535,18 @@ void FitsViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
 }
 
 
-void FitsViewWidget::wheelEvent(QWheelEvent *event)
-{
-    qDebug() << "WHEEL!!!";
-    if ( !currentImage_buffer ) return;
-    int numDegrees = event->delta() / 8;
+//void FitsViewWidget::wheelEvent(QWheelEvent *event)
+//{
+//    qDebug() << "WHEEL!!!";
+//    if ( !currentImage_buffer ) return;
+//    int numDegrees = event->delta() / 8;
 
-    int numSteps = numDegrees / 15; // see QWheelEvent documentation
+//    int numSteps = numDegrees / 15; // see QWheelEvent documentation
 
-    qreal factor = 1.0+qreal(numSteps)*0.1;
-    qDebug() << "factor(wheel) = " << factor;
-    incrementZoom(factor);
-}
+//    qreal factor = 1.0+qreal(numSteps)*0.1;
+//    qDebug() << "factor(wheel) = " << factor;
+//    incrementZoom(factor);
+//}
 
 
 void FitsViewWidget::mousePressEvent(QMouseEvent *event)
@@ -551,7 +555,7 @@ void FitsViewWidget::mousePressEvent(QMouseEvent *event)
 
     if ( event->button() == Qt::LeftButton ) {
         if ( rubberBandIsShown ) {
-            scene->removeItem(rubberBand);
+//            scene->removeItem(rubberBand);
             rubberBandIsShown = false;
             emit RegionWasDeselected();
         }
@@ -602,7 +606,7 @@ void FitsViewWidget::resizeTimeout()
 
 //    qDebug() << currentViewedSubImage.adjusted(currentImage_dim[0]/2,currentImage_dim[1]/2,currentImage_dim[0]/2,currentImage_dim[1]/2);
 
-    QRectF rr = view->mapToScene(this->geometry()).boundingRect();
+    QRectF rr = view->mapToScene(view->geometry()).boundingRect();
 
     qreal hfactor = 1.0*rr.height()/currentViewedSubImage.height();
     qreal wfactor = 1.0*rr.width()/currentViewedSubImage.width();
@@ -660,10 +664,3 @@ void FitsViewWidget::generateCT(FitsViewWidget::ColorTable ct)
     }
 }
 
-
-bool FitsViewWidget::event(QEvent *event)
-{
-    qDebug() << "EVENT TYPE: " << event->type();
-
-    return QWidget::event(event);
-}

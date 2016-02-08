@@ -2,6 +2,7 @@
 #define FITSVIEWWIDGET_H
 
 #include "fitsviewwidget_global.h"
+#include "viewpanel.h"
 
 #include<memory>
 #include<QWidget>
@@ -82,13 +83,13 @@ protected:
     virtual void mousePressEvent(QMouseEvent* event);
     virtual void mouseReleaseEvent(QMouseEvent* event);
     virtual void mouseDoubleClickEvent(QMouseEvent* event);
-    virtual void wheelEvent(QWheelEvent* event);
+//    virtual void wheelEvent(QWheelEvent* event);
     virtual void keyPressEvent(QKeyEvent* event);
     virtual void resizeEvent(QResizeEvent *event);
 
-    virtual bool event(QEvent *event);
 
-    QGraphicsView *view;
+//    QGraphicsView *view;
+    ViewPanel *view;
 
     QGraphicsRectItem *rubberBand;
     QPointF rubberBandOrigin, rubberBandEnd;
@@ -121,7 +122,7 @@ private:
     ColorTable currentCT_name;
 
     QPixmap currentPixmap;
-    QPointer<QGraphicsScene> scene;
+//    QPointer<QGraphicsScene> scene;
     QGraphicsPixmapItem *fitsImagePixmapItem;
     qreal currentZoomFactor;
     qreal zoomIncrement;
