@@ -11,13 +11,21 @@ ViewPanel::ViewPanel(QWidget *parent): QGraphicsView(parent)
 }
 
 
-QGraphicsPixmapItem* ViewPanel::showPixmap(QPixmap *pixmap)
+QGraphicsPixmapItem* ViewPanel::showPixmap(const QPixmap *pixmap, const QPointF &center, qreal scale)
 {
     viewScene->clear();
     viewScene->setSceneRect(-1.0*pixmap->size().width(),-1.0*pixmap->size().height(),2.0*pixmap->size().width(),2.0*pixmap->size().height());
 
     QGraphicsPixmapItem* item = viewScene->addPixmap(*pixmap);
-    item->setPos(-0.5*pixmap->size().width(),-0.5*pixmap->size().height());
+    item->setPos(-center.x(), -center.y());
+
+//    item->setPos(-0.5*pixmap->size().width(),-0.5*pixmap->size().height());
+
+    if ( scale <= 0 ) { // show entire image
+        this->fitInView(item,Qt::KeepAspectRatio);
+    } else {
+        this->scale(scale,scale);
+    }
 
     return item;
 }
@@ -37,3 +45,4 @@ void ViewPanel::wheelEvent(QWheelEvent *event)
     this->scale(factor,factor);
     qDebug() << mapToScene(viewport()->rect()).boundingRect();
 }
+

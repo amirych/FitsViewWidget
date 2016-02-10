@@ -16,10 +16,12 @@ class ViewPanel : public QGraphicsView
 public:
     ViewPanel(QWidget *parent);
 
-    QGraphicsPixmapItem* showPixmap(QPixmap *pixmap);
+    // center is in pixmapItem coordinate system, i.e., this is pixel coordinates of image shown
+    QGraphicsPixmapItem* showPixmap(const QPixmap *pixmap, const QPointF &center, qreal scale = 0);
 
 signals:
     void zoomWasChanged();
+    void centerWasChanged(QPointF center);
 
 protected slots:
 //    virtual void mouseMoveEvent(QMouseEvent* event);

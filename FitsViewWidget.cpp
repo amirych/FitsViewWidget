@@ -121,7 +121,7 @@ FitsViewWidget::FitsViewWidget(QWidget *parent): QWidget(parent),
     lowCutSigmas(2.0), highCutSigmas(5.0),
     currentLowCut(0.0), currentHighCut(0.0),
     currentCT(QVector<QRgb>(FITS_VIEW_COLOR_TABLE_LENGTH)), currentCT_name(FitsViewWidget::CT_NEGBW),
-    currentPixmap(QPixmap()), currentZoomFactor(1.0), zoomIncrement(2.0),
+    currentPixmap(QPixmap()), currentZoomFactor(0.0), zoomIncrement(2.0),
     maxSampleLength(FITS_VIEW_MAX_SAMPLE_LENGTH),
     currentViewedSubImageCenter(QPointF(0,0))
 {
@@ -244,19 +244,19 @@ void FitsViewWidget::load(const QString fits_filename, const bool autoscale)
         rescale(currentLowCut,currentHighCut);
     }
 
-    // redefine scene size
-//    scene->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
-    view->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
+//    // redefine scene size
+////    scene->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
+//    view->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
 
-    // compute zoom factor for entire image viewing
-//    qDebug() << view->viewport()->width();
-    qreal xzoom = 1.0*(view->viewport()->width()-2.0*FITS_VIEW_IMAGE_MARGIN)/currentImage_dim[0];
-    qreal yzoom = 1.0*(view->viewport()->height()-2.0*FITS_VIEW_IMAGE_MARGIN)/currentImage_dim[1];
+//    // compute zoom factor for entire image viewing
+////    qDebug() << view->viewport()->width();
+//    qreal xzoom = 1.0*(view->viewport()->width()-2.0*FITS_VIEW_IMAGE_MARGIN)/currentImage_dim[0];
+//    qreal yzoom = 1.0*(view->viewport()->height()-2.0*FITS_VIEW_IMAGE_MARGIN)/currentImage_dim[1];
 
-    qDebug() << xzoom << yzoom;
-    currentZoomFactor = ( xzoom < yzoom ) ? xzoom : yzoom;
+//    qDebug() << xzoom << yzoom;
+//    currentZoomFactor = ( xzoom < yzoom ) ? xzoom : yzoom;
 
-    currentViewedSubImageCenter = QPointF(0.0,0.0);
+//    currentViewedSubImageCenter = QPointF(0.0,0.0);
     currentViewedSubImage.setWidth(currentImage_dim[0]);
     currentViewedSubImage.setHeight(currentImage_dim[1]);
 
@@ -334,19 +334,16 @@ void FitsViewWidget::showImage()
 
     currentPixmap = QPixmap::fromImage(im);
 
-//    scene->clear();
-
-//    scene->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
-
-//    fitsImagePixmapItem = scene->addPixmap(currentPixmap);
-//    fitsImagePixmapItem->setPos(-0.5*currentImage_dim[0],-0.5*currentImage_dim[1]);
-
-    fitsImagePixmapItem = view->showPixmap(&currentPixmap);
+    fitsImagePixmapItem = view->showPixmap(&currentPixmap,QPointF(0.5*currentImage_dim[0],0.5*currentImage_dim[1]),currentZoomFactor);
 
 
 //    view->fitInView(fitsImagePixmapItem,Qt::KeepAspectRatio);
-    view->centerOn(currentViewedSubImageCenter);
-    setZoom(currentZoomFactor);
+
+//    view->centerOn(currentViewedSubImageCenter);
+
+//    setZoom(currentZoomFactor);
+
+    currentZoomFactor = view->transform().m11();
 //    view->scale(currentZoomFactor,currentZoomFactor);
 //    scale(0.66348,0.66348);
 
@@ -404,6 +401,12 @@ void FitsViewWidget::setColorTable(FitsViewWidget::ColorTable ct)
     generateCT(ct);
     if ( currentError != FitsViewWidget::OK ) return;
     currentCT_name = ct;
+
+    QImage im = QImage(currentScaledImage_buffer.get(),currentImage_dim[0],currentImage_dim[1],currentImage_dim[0],QImage::Format_Indexed8);
+    im.setColorTable(currentCT);
+
+    currentPixmap = QPixmap::fromImage(im);
+    fitsImagePixmapItem->setPixmap(currentPixmap);
 
     emit ColorTableIsChanged(ct);
 }
@@ -519,6 +522,8 @@ void FitsViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
     if ( !currentScaledImage_buffer ) return;
 
     currentViewedSubImageCenter =  view->mapToScene( event->pos() );
+
+    qDebug() << "doubleClick: " << fitsImagePixmapItem->mapFromScene(currentViewedSubImageCenter);
 
     centerOn(currentViewedSubImageCenter);
 
