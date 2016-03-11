@@ -76,6 +76,7 @@ signals:
     void fitsViewError(int err);
     void cutsAreChanged(double lcut, double hcut);
     void ColorTableIsChanged(FitsViewWidget::ColorTable ct);
+    void zoomIsChanged(qreal factor);
     void RegionWasDeselected();
 
 protected:
@@ -100,6 +101,7 @@ protected:
 
 private slots:
     void resizeTimeout();
+    void changeZoom(qreal factor);
 
 private:
     int currentError;
@@ -131,7 +133,7 @@ private:
 
     QPointer<QTimer> resizeTimer;
     QRectF currentViewedSubImage;
-    QPointF currentViewedSubImageCenter;
+    QPointF currentViewedSubImageCenter; // in image pixels
 };
 
 #endif // FITSVIEWWIDGET_H

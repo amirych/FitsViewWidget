@@ -17,9 +17,12 @@ QGraphicsPixmapItem* ViewPanel::showPixmap(const QPixmap *pixmap, const QPointF 
     viewScene->setSceneRect(-1.0*pixmap->size().width(),-1.0*pixmap->size().height(),2.0*pixmap->size().width(),2.0*pixmap->size().height());
 
     QGraphicsPixmapItem* item = viewScene->addPixmap(*pixmap);
-    item->setPos(-center.x(), -center.y());
 
-//    item->setPos(-0.5*pixmap->size().width(),-0.5*pixmap->size().height());
+    QPointF cc = center - QPointF(-0.5,-0.5); // FITS coordinates begin from (1,1) and origin is at the center of pixel
+    item->setPos(-cc);
+
+//    item->setPos(-0.5*pixmap->size().width(), -0.5*pixmap->size().height());
+
 
     if ( scale <= 0 ) { // show entire image
         this->fitInView(item,Qt::KeepAspectRatio);
@@ -33,16 +36,17 @@ QGraphicsPixmapItem* ViewPanel::showPixmap(const QPixmap *pixmap, const QPointF 
 
 void ViewPanel::wheelEvent(QWheelEvent *event)
 {
-    qDebug() << "WHEEL!!!";
+//    qDebug() << "WHEEL!!!";
 //    if ( !currentImage_buffer ) return;
     int numDegrees = event->delta() / 8;
 
     int numSteps = numDegrees / 15; // see QWheelEvent documentation
 
     qreal factor = 1.0+qreal(numSteps)*0.1;
-    qDebug() << "factor(wheel) = " << factor;
+//    qDebug() << "factor(wheel) = " << factor;
 
     this->scale(factor,factor);
-    qDebug() << mapToScene(viewport()->rect()).boundingRect();
+    emit zoomWasChanged(factor);
+//    qDebug() << mapToScene(viewport()->rect()).boundingRect();
 }
 

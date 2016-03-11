@@ -156,6 +156,8 @@ FitsViewWidget::FitsViewWidget(QWidget *parent): QWidget(parent),
     connect(resizeTimer,SIGNAL(timeout()),this,SLOT(resizeTimeout()));
 
     connect(this,SIGNAL(ColorTableIsChanged(FitsViewWidget::ColorTable)),this,SLOT(showImage()));
+    connect(view,SIGNAL(zoomWasChanged(qreal)),this,SLOT(changeZoom(qreal)));
+    connect(this,SIGNAL(zoomIsChanged(qreal)),this,SLOT(changeZoom(qreal)));
 
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->addWidget(view);
@@ -256,9 +258,10 @@ void FitsViewWidget::load(const QString fits_filename, const bool autoscale)
 //    qDebug() << xzoom << yzoom;
 //    currentZoomFactor = ( xzoom < yzoom ) ? xzoom : yzoom;
 
-//    currentViewedSubImageCenter = QPointF(0.0,0.0);
     currentViewedSubImage.setWidth(currentImage_dim[0]);
     currentViewedSubImage.setHeight(currentImage_dim[1]);
+    currentViewedSubImageCenter = QPointF(0.5*currentImage_dim[0],0.5*currentImage_dim[1]);
+    currentZoomFactor = 0.0; // full image
 
 //    qDebug() << "cuts: " << currentLowCut << ", " << currentHighCut;
 }
@@ -334,7 +337,8 @@ void FitsViewWidget::showImage()
 
     currentPixmap = QPixmap::fromImage(im);
 
-    fitsImagePixmapItem = view->showPixmap(&currentPixmap,QPointF(0.5*currentImage_dim[0],0.5*currentImage_dim[1]),currentZoomFactor);
+//    fitsImagePixmapItem = view->showPixmap(&currentPixmap,QPointF(0.5*currentImage_dim[0],0.5*currentImage_dim[1]),currentZoomFactor);
+    fitsImagePixmapItem = view->showPixmap(&currentPixmap,currentViewedSubImageCenter,currentZoomFactor);
 
 
 //    view->fitInView(fitsImagePixmapItem,Qt::KeepAspectRatio);
@@ -402,6 +406,8 @@ void FitsViewWidget::setColorTable(FitsViewWidget::ColorTable ct)
     if ( currentError != FitsViewWidget::OK ) return;
     currentCT_name = ct;
 
+    if ( !currentImage_buffer ) return;
+
     QImage im = QImage(currentScaledImage_buffer.get(),currentImage_dim[0],currentImage_dim[1],currentImage_dim[0],QImage::Format_Indexed8);
     im.setColorTable(currentCT);
 
@@ -429,8 +435,13 @@ void FitsViewWidget::centerOn(qreal x, qreal y)
     currentViewedSubImageCenter.setX(x);
     currentViewedSubImageCenter.setY(y);
 
-    view->centerOn(x,y);
-    qDebug() << "recentering: " << x << y;
+    // convert from FITS image pixel cordinates to the scene ones
+    QPointF cen = QPointF(x-0.5,y-0.5);
+    cen = fitsImagePixmapItem->mapToScene(currentViewedSubImageCenter);
+
+//    view->centerOn(x,y);
+    view->centerOn(cen);
+    qDebug() << "recentering: " << cen;
 }
 
 
@@ -474,12 +485,14 @@ void FitsViewWidget::incrementZoom(const qreal zoom_inc)
 
     view->scale(zoom_inc,zoom_inc);
 
-    currentZoomFactor *= zoom_inc;
+    emit zoomIsChanged(zoom_inc);
 
-    // recompute current viewed sub-image
-    currentViewedSubImage = view->mapToScene(view->viewport()->rect()).boundingRect();
-    if ( currentViewedSubImage.width() > currentImage_dim[0] ) currentViewedSubImage.setWidth(currentImage_dim[0]);
-    if ( currentViewedSubImage.height() > currentImage_dim[1] ) currentViewedSubImage.setHeight(currentImage_dim[1]);
+//    currentZoomFactor *= zoom_inc;
+
+//    // recompute current viewed sub-image
+//    currentViewedSubImage = view->mapToScene(view->viewport()->rect()).boundingRect();
+//    if ( currentViewedSubImage.width() > currentImage_dim[0] ) currentViewedSubImage.setWidth(currentImage_dim[0]);
+//    if ( currentViewedSubImage.height() > currentImage_dim[1] ) currentViewedSubImage.setHeight(currentImage_dim[1]);
 
 //    qDebug() << view->transform();
 }
@@ -497,12 +510,12 @@ void FitsViewWidget::zoomFitInView()
     qreal xzoom = 1.0*(view->viewport()->width()-2.0*FITS_VIEW_IMAGE_MARGIN)/currentImage_dim[0];
     qreal yzoom = 1.0*(view->viewport()->height()-2.0*FITS_VIEW_IMAGE_MARGIN)/currentImage_dim[1];
 
-    currentViewedSubImageCenter = QPointF(0.0,0.0);
+    // FITS coordinate system starts from (1,1) and its origin is at the center of pixel
+    currentViewedSubImageCenter = QPointF(0.5*currentImage_dim[0]+0.5,0.5*currentImage_dim[1]+0.5);
     currentViewedSubImage.setWidth(currentImage_dim[0]);
     currentViewedSubImage.setHeight(currentImage_dim[1]);
 
-    fitsImagePixmapItem->setPos(-0.5*currentImage_dim[0],-0.5*currentImage_dim[1]);
-    view->centerOn(currentViewedSubImageCenter);
+    centerOn(currentViewedSubImageCenter);
 
     setZoom(( xzoom < yzoom ) ? xzoom : yzoom);
 }
@@ -523,9 +536,15 @@ void FitsViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
 
     currentViewedSubImageCenter =  view->mapToScene( event->pos() );
 
-    qDebug() << "doubleClick: " << fitsImagePixmapItem->mapFromScene(currentViewedSubImageCenter);
+    view->centerOn(currentViewedSubImageCenter);
 
-    centerOn(currentViewedSubImageCenter);
+    qDebug() << "doubleClick (mouse pos): " << event->pos();
+    qDebug() << "doubleClick (imcenter scene): " << currentViewedSubImageCenter;
+    qDebug() << "doubleClick: (image pixel)" << fitsImagePixmapItem->mapFromScene(currentViewedSubImageCenter);
+
+    // convert to pixels coordinates
+    currentViewedSubImageCenter = fitsImagePixmapItem->mapFromScene(currentViewedSubImageCenter) + QPointF(0.5,0.5);
+
 
     qreal incr;
 
@@ -609,16 +628,33 @@ void FitsViewWidget::resizeTimeout()
 {
     resizeTimer->stop();
 
-//    qDebug() << currentViewedSubImage.adjusted(currentImage_dim[0]/2,currentImage_dim[1]/2,currentImage_dim[0]/2,currentImage_dim[1]/2);
+//    QRectF rr = view->mapToScene(view->geometry()).boundingRect();
 
-    QRectF rr = view->mapToScene(view->geometry()).boundingRect();
+    centerOn(currentViewedSubImageCenter);
+    view->invalidateScene();
 
-    qreal hfactor = 1.0*rr.height()/currentViewedSubImage.height();
-    qreal wfactor = 1.0*rr.width()/currentViewedSubImage.width();
+    return;
 
-    qreal factor = (hfactor > wfactor) ? wfactor : hfactor;
+//    if ( (rr.height() < currentViewedSubImage.height()) || (rr.width() < currentViewedSubImage.width()) ) {
+//        qreal hfactor = 1.0*rr.height()/currentViewedSubImage.height();
+//        qreal wfactor = 1.0*rr.width()/currentViewedSubImage.width();
 
-    incrementZoom(factor);
+//        qreal factor = (hfactor > wfactor) ? wfactor : hfactor;
+//        incrementZoom(factor);
+//    } else {
+//        setZoom(currentZoomFactor);
+//    }
+
+}
+
+void FitsViewWidget::changeZoom(qreal factor)
+{
+    currentZoomFactor *= factor;
+
+    // recompute current viewed sub-image
+    currentViewedSubImage = view->mapToScene(view->viewport()->rect()).boundingRect();
+    if ( currentViewedSubImage.width() > currentImage_dim[0] ) currentViewedSubImage.setWidth(currentImage_dim[0]);
+    if ( currentViewedSubImage.height() > currentImage_dim[1] ) currentViewedSubImage.setHeight(currentImage_dim[1]);
 }
 
         /*  PRIVATE METHODS  */

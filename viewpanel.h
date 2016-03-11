@@ -20,7 +20,7 @@ public:
     QGraphicsPixmapItem* showPixmap(const QPixmap *pixmap, const QPointF &center, qreal scale = 0);
 
 signals:
-    void zoomWasChanged();
+    void zoomWasChanged(qreal factor);
     void centerWasChanged(QPointF center);
 
 protected slots:
