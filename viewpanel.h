@@ -22,9 +22,10 @@ public:
 signals:
     void zoomWasChanged(qreal factor);
     void centerWasChanged(QPointF center);
+    void cursorPos(QPointF pos);
 
 protected slots:
-//    virtual void mouseMoveEvent(QMouseEvent* event);
+    virtual void mouseMoveEvent(QMouseEvent* event);
 //    virtual void mousePressEvent(QMouseEvent* event);
 //    virtual void mouseReleaseEvent(QMouseEvent* event);
 //    virtual void mouseDoubleClickEvent(QMouseEvent* event);
@@ -34,6 +35,7 @@ protected slots:
 
 private:
     QGraphicsScene *viewScene;
+    QGraphicsPixmapItem *currentPixmapItem;
 };
 
 #endif // VIEWPANEL_H

@@ -78,9 +78,9 @@ signals:
     void ColorTableIsChanged(FitsViewWidget::ColorTable ct);
     void zoomIsChanged(qreal factor);
     void RegionWasDeselected();
+    void imagePoint(QPointF pos, double value);
 
 protected:
-    virtual void mouseMoveEvent(QMouseEvent* event);
     virtual void mousePressEvent(QMouseEvent* event);
     virtual void mouseReleaseEvent(QMouseEvent* event);
     virtual void mouseDoubleClickEvent(QMouseEvent* event);
@@ -102,6 +102,7 @@ protected:
 private slots:
     void resizeTimeout();
     void changeZoom(qreal factor);
+    void changeCursorPos(QPointF pos);
 
 private:
     int currentError;

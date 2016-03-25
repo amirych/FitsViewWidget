@@ -142,9 +142,6 @@ FitsViewWidget::FitsViewWidget(QWidget *parent): QWidget(parent),
 
     view->setCursor(Qt::CrossCursor);
 
-//    view->setMouseTracking(true);
-    setMouseTracking(true);
-    setFocusProxy(view);
 
     view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -158,10 +155,15 @@ FitsViewWidget::FitsViewWidget(QWidget *parent): QWidget(parent),
     connect(this,SIGNAL(ColorTableIsChanged(FitsViewWidget::ColorTable)),this,SLOT(showImage()));
     connect(view,SIGNAL(zoomWasChanged(qreal)),this,SLOT(changeZoom(qreal)));
     connect(this,SIGNAL(zoomIsChanged(qreal)),this,SLOT(changeZoom(qreal)));
+    connect(view,SIGNAL(cursorPos(QPointF)),this,SLOT(changeCursorPos(QPointF)));
 
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->addWidget(view);
     layout->setMargin(0);
+
+    view->setMouseTracking(true);
+    setMouseTracking(true);
+    setFocusProxy(view);
 }
 
 
@@ -524,12 +526,6 @@ void FitsViewWidget::zoomFitInView()
         /*  PROTECTED METHODS  */
 
 
-void FitsViewWidget::mouseMoveEvent(QMouseEvent *event)
-{
-    if ( !currentScaledImage_buffer ) return;
-}
-
-
 void FitsViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
 {
     if ( !currentScaledImage_buffer ) return;
@@ -656,6 +652,25 @@ void FitsViewWidget::changeZoom(qreal factor)
     if ( currentViewedSubImage.width() > currentImage_dim[0] ) currentViewedSubImage.setWidth(currentImage_dim[0]);
     if ( currentViewedSubImage.height() > currentImage_dim[1] ) currentViewedSubImage.setHeight(currentImage_dim[1]);
 }
+
+
+void FitsViewWidget::changeCursorPos(QPointF pos)
+{
+    if ( pos.x() >= 0 && pos.y() >= 0 &&
+         pos.x() < currentImage_dim[0] && pos.y() < currentImage_dim[1] ) {
+
+        uint x = (uint) pos.x();
+        uint y = (uint) pos.y();
+
+        // convert coordinates to FITS standard (starting from 1, integer coordinates are at the center of pixel)
+        pos += QPointF(0.5,0.5);
+
+        double val = currentImage_buffer[currentImage_dim[0]*y + x];
+
+        emit imagePoint(pos,val);
+    }
+}
+
 
         /*  PRIVATE METHODS  */
 

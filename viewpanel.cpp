@@ -2,8 +2,10 @@
 
 #include <QDebug>
 #include <QWheelEvent>
+#include <QList>
 
-ViewPanel::ViewPanel(QWidget *parent): QGraphicsView(parent)
+ViewPanel::ViewPanel(QWidget *parent): QGraphicsView(parent),
+    currentPixmapItem(nullptr)
 {
     viewScene = new QGraphicsScene(this);
 
@@ -14,23 +16,24 @@ ViewPanel::ViewPanel(QWidget *parent): QGraphicsView(parent)
 QGraphicsPixmapItem* ViewPanel::showPixmap(const QPixmap *pixmap, const QPointF &center, qreal scale)
 {
     viewScene->clear();
+    currentPixmapItem = nullptr;
     viewScene->setSceneRect(-1.0*pixmap->size().width(),-1.0*pixmap->size().height(),2.0*pixmap->size().width(),2.0*pixmap->size().height());
 
-    QGraphicsPixmapItem* item = viewScene->addPixmap(*pixmap);
+    currentPixmapItem = viewScene->addPixmap(*pixmap);
 
     QPointF cc = center - QPointF(-0.5,-0.5); // FITS coordinates begin from (1,1) and origin is at the center of pixel
-    item->setPos(-cc);
+    currentPixmapItem->setPos(-cc);
 
 //    item->setPos(-0.5*pixmap->size().width(), -0.5*pixmap->size().height());
 
 
     if ( scale <= 0 ) { // show entire image
-        this->fitInView(item,Qt::KeepAspectRatio);
+        this->fitInView(currentPixmapItem,Qt::KeepAspectRatio);
     } else {
         this->scale(scale,scale);
     }
 
-    return item;
+    return currentPixmapItem;
 }
 
 
@@ -50,3 +53,14 @@ void ViewPanel::wheelEvent(QWheelEvent *event)
 //    qDebug() << mapToScene(viewport()->rect()).boundingRect();
 }
 
+
+void ViewPanel::mouseMoveEvent(QMouseEvent *event)
+{
+    if ( currentPixmapItem == nullptr ) return;
+
+    QPointF pos =  mapToScene( event->pos() );
+
+    pos = currentPixmapItem->mapFromScene(pos);
+
+    emit cursorPos(pos);
+}
