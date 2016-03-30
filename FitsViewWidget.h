@@ -2,7 +2,7 @@
 #define FITSVIEWWIDGET_H
 
 #include "fitsviewwidget_global.h"
-#include "viewpanel.h"
+//#include "viewpanel.h"
 
 #include<memory>
 #include<QWidget>
@@ -27,14 +27,14 @@
 #define FITS_VIEW_DEFAULT_RESIZE_TIMEOUT 250 // 1/4 second
 #define FITS_VIEW_IMAGE_MARGIN 2 // margin between viewed image and border of viewport
 
-class FITSVIEWWIDGETSHARED_EXPORT FitsViewWidget: public QWidget
+class FITSVIEWWIDGETSHARED_EXPORT FitsViewWidget: public QGraphicsView
 {
 
     Q_OBJECT
 
 public:
     enum ColorTable {CT_BW, CT_NEGBW};
-    enum Error {OK, MemoryError = 10000, BadColorTable, BadCutValue};
+    enum Error {OK, MemoryError = 10000, BadColorTable, BadCutValue, BadRegion};
 
     FitsViewWidget(QWidget *parent = nullptr);
 
@@ -77,20 +77,19 @@ signals:
     void cutsAreChanged(double lcut, double hcut);
     void ColorTableIsChanged(FitsViewWidget::ColorTable ct);
     void zoomIsChanged(qreal factor);
-    void RegionWasDeselected();
+    void regionWasSelected(QRectF region);
+    void regionWasDeselected();
     void imagePoint(QPointF pos, double value);
 
 protected:
+    virtual void mouseMoveEvent(QMouseEvent* event);
     virtual void mousePressEvent(QMouseEvent* event);
     virtual void mouseReleaseEvent(QMouseEvent* event);
     virtual void mouseDoubleClickEvent(QMouseEvent* event);
-//    virtual void wheelEvent(QWheelEvent* event);
+    virtual void wheelEvent(QWheelEvent* event);
     virtual void keyPressEvent(QKeyEvent* event);
     virtual void resizeEvent(QResizeEvent *event);
 
-
-//    QGraphicsView *view;
-    ViewPanel *view;
 
     QGraphicsRectItem *rubberBand;
     QPointF rubberBandOrigin, rubberBandEnd;
@@ -99,10 +98,12 @@ protected:
     bool rubberBandIsShown;
 
 
+    void getSubImage(std::vector<double> &subImage, QRectF &rect);
+
 private slots:
     void resizeTimeout();
     void changeZoom(qreal factor);
-    void changeCursorPos(QPointF pos);
+    void updateFitsPixmap();
 
 private:
     int currentError;
@@ -125,7 +126,8 @@ private:
     ColorTable currentCT_name;
 
     QPixmap currentPixmap;
-//    QPointer<QGraphicsScene> scene;
+    QPointer<QGraphicsScene> scene;
+//    QGraphicsScene *scene;
     QGraphicsPixmapItem *fitsImagePixmapItem;
     qreal currentZoomFactor;
     qreal zoomIncrement;

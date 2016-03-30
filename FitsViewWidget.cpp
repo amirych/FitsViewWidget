@@ -110,7 +110,7 @@ static int robust_sigma(std::vector<double> &sample, double *sigma, double *medi
 
             /*  CONSTRUCTOR AND DESTRUCTOR  */
 
-FitsViewWidget::FitsViewWidget(QWidget *parent): QWidget(parent),
+FitsViewWidget::FitsViewWidget(QWidget *parent): QGraphicsView(parent),
     rubberBand(nullptr), rubberBandOrigin(QPointF(0,0)), rubberBandEnd(QPointF(0,0)),
     rubberBandPen(QPen(QBrush(Qt::SolidPattern),0,Qt::DashLine)),
     rubberBandIsActive(false), rubberBandIsShown(false),
@@ -121,7 +121,9 @@ FitsViewWidget::FitsViewWidget(QWidget *parent): QWidget(parent),
     lowCutSigmas(2.0), highCutSigmas(5.0),
     currentLowCut(0.0), currentHighCut(0.0),
     currentCT(QVector<QRgb>(FITS_VIEW_COLOR_TABLE_LENGTH)), currentCT_name(FitsViewWidget::CT_NEGBW),
-    currentPixmap(QPixmap()), currentZoomFactor(0.0), zoomIncrement(2.0),
+    currentPixmap(QPixmap()),
+    fitsImagePixmapItem(nullptr),
+    currentZoomFactor(0.0), zoomIncrement(2.0),
     maxSampleLength(FITS_VIEW_MAX_SAMPLE_LENGTH),
     currentViewedSubImageCenter(QPointF(0,0))
 {
@@ -129,41 +131,43 @@ FitsViewWidget::FitsViewWidget(QWidget *parent): QWidget(parent),
     currentImage_dim[0] = 0, currentImage_dim[1] = 0;
 
     generateCT(currentCT_name);
-    generateCT(CT_BW);
+//    generateCT(CT_BW);
 //    setColorTable(FitsViewWidget::CT_NEGBW);
 
-    view = new ViewPanel(this);
+//    view = new ViewPanel(this);
 //    view = new QGraphicsView(this);
-//    scene = new QGraphicsScene(this);
-//    view->setScene(scene);
+    scene = new QGraphicsScene(this);
+    setScene(scene);
 
     QTransform tr(1.0,0.0,0.0,-1.0,0.0,0.0); // reflection about x-axis to put
-    view->setTransform(tr);                  // the origin to bottom-left conner
+    setTransform(tr);                  // the origin to bottom-left conner
 
-    view->setCursor(Qt::CrossCursor);
+    setCursor(Qt::CrossCursor);
 
 
-    view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    view->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContentsOnFirstShow);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContentsOnFirstShow);
 
     rubberBandPen.setColor("red");
 
     resizeTimer = new QTimer(this);
     connect(resizeTimer,SIGNAL(timeout()),this,SLOT(resizeTimeout()));
 
-    connect(this,SIGNAL(ColorTableIsChanged(FitsViewWidget::ColorTable)),this,SLOT(showImage()));
-    connect(view,SIGNAL(zoomWasChanged(qreal)),this,SLOT(changeZoom(qreal)));
+    //    connect(this,SIGNAL(ColorTableIsChanged(FitsViewWidget::ColorTable)),this,SLOT(showImage()));
+    connect(this,SIGNAL(ColorTableIsChanged(FitsViewWidget::ColorTable)),this,SLOT(updateFitsPixmap()));
+//    connect(view,SIGNAL(zoomWasChanged(qreal)),this,SLOT(changeZoom(qreal)));
     connect(this,SIGNAL(zoomIsChanged(qreal)),this,SLOT(changeZoom(qreal)));
-    connect(view,SIGNAL(cursorPos(QPointF)),this,SLOT(changeCursorPos(QPointF)));
+//    connect(view,SIGNAL(cursorPos(QPointF)),this,SLOT(changeCursorPos(QPointF)));
+    connect(this,SIGNAL(cutsAreChanged(double,double)),this,SLOT(updateFitsPixmap()));
 
-    QVBoxLayout *layout = new QVBoxLayout(this);
-    layout->addWidget(view);
-    layout->setMargin(0);
+//    QVBoxLayout *layout = new QVBoxLayout(this);
+//    layout->addWidget(view);
+//    layout->setMargin(0);
 
-    view->setMouseTracking(true);
+//    view->setMouseTracking(true);
     setMouseTracking(true);
-    setFocusProxy(view);
+//    setFocusProxy(view);
 }
 
 
@@ -248,22 +252,27 @@ void FitsViewWidget::load(const QString fits_filename, const bool autoscale)
         rescale(currentLowCut,currentHighCut);
     }
 
-//    // redefine scene size
-////    scene->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
-//    view->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
+    // convert to pixmap
+    QImage im = QImage(currentScaledImage_buffer.get(),currentImage_dim[0],currentImage_dim[1],currentImage_dim[0],QImage::Format_Indexed8);
+    im.setColorTable(currentCT);
+
+    currentPixmap = QPixmap::fromImage(im);
+
+    // redefine scene size
+    scene->setSceneRect(-1.0*currentImage_dim[0],-1.0*currentImage_dim[1],2.0*currentImage_dim[0],2.0*currentImage_dim[1]);
 
 //    // compute zoom factor for entire image viewing
 ////    qDebug() << view->viewport()->width();
-//    qreal xzoom = 1.0*(view->viewport()->width()-2.0*FITS_VIEW_IMAGE_MARGIN)/currentImage_dim[0];
-//    qreal yzoom = 1.0*(view->viewport()->height()-2.0*FITS_VIEW_IMAGE_MARGIN)/currentImage_dim[1];
+    qreal xzoom = 1.0*(this->viewport()->width()-2.0*FITS_VIEW_IMAGE_MARGIN)/currentImage_dim[0];
+    qreal yzoom = 1.0*(this->viewport()->height()-2.0*FITS_VIEW_IMAGE_MARGIN)/currentImage_dim[1];
+    currentZoomFactor = ( xzoom < yzoom ) ? xzoom : yzoom;
 
 //    qDebug() << xzoom << yzoom;
-//    currentZoomFactor = ( xzoom < yzoom ) ? xzoom : yzoom;
 
     currentViewedSubImage.setWidth(currentImage_dim[0]);
     currentViewedSubImage.setHeight(currentImage_dim[1]);
-    currentViewedSubImageCenter = QPointF(0.5*currentImage_dim[0],0.5*currentImage_dim[1]);
-    currentZoomFactor = 0.0; // full image
+    currentViewedSubImageCenter = QPointF(0.5*currentImage_dim[0]+0.5,0.5*currentImage_dim[1]+0.5);
+//    currentZoomFactor = 0.0; // full image
 
 //    qDebug() << "cuts: " << currentLowCut << ", " << currentHighCut;
 }
@@ -333,38 +342,20 @@ void FitsViewWidget::showImage()
 {
     if ( !currentImage_buffer ) return;
 
-    // convert to pixmap
-    QImage im = QImage(currentScaledImage_buffer.get(),currentImage_dim[0],currentImage_dim[1],currentImage_dim[0],QImage::Format_Indexed8);
-    im.setColorTable(currentCT);
-
-    currentPixmap = QPixmap::fromImage(im);
-
-//    fitsImagePixmapItem = view->showPixmap(&currentPixmap,QPointF(0.5*currentImage_dim[0],0.5*currentImage_dim[1]),currentZoomFactor);
-    fitsImagePixmapItem = view->showPixmap(&currentPixmap,currentViewedSubImageCenter,currentZoomFactor);
-
+    scene->clear();
+    fitsImagePixmapItem = scene->addPixmap(currentPixmap);
+    QPointF cen = currentViewedSubImageCenter - QPointF(-0.5,-0.5);
+    fitsImagePixmapItem->setPos(-cen);
 
 //    view->fitInView(fitsImagePixmapItem,Qt::KeepAspectRatio);
 
-//    view->centerOn(currentViewedSubImageCenter);
+    centerOn(currentViewedSubImageCenter);
+    setZoom(currentZoomFactor);
 
-//    setZoom(currentZoomFactor);
-
-    currentZoomFactor = view->transform().m11();
+//    currentZoomFactor = view->transform().m11();
 //    view->scale(currentZoomFactor,currentZoomFactor);
 //    scale(0.66348,0.66348);
 
-    qDebug() << currentZoomFactor;
-    qDebug() << view->transform();
-
-//    currentViewedSubImage = view->mapToScene(view->viewport()->rect()).boundingRect();
-//    if ( currentViewedSubImage.width() > currentImage_dim[0] ) currentViewedSubImage.setWidth(currentImage_dim[0]);
-//    if ( currentViewedSubImage.height() > currentImage_dim[1] ) currentViewedSubImage.setHeight(currentImage_dim[1]);
-
-//    qDebug() << 1.0*view->viewport()->width()/currentImage_dim[0] << 1.0*viewport()->height()/currentImage_dim[1];
-//    int lm,tm,rm,bm;
-//    view->viewport()->getContentsMargins(&lm,&tm,&rm,&bm);
-//    qDebug() << lm << tm << rm << bm;
-//    qDebug() << 1.0*(view->viewport()->width()-4)/currentImage_dim[0] << 1.0*(view->viewport()->height()-4)/currentImage_dim[1];
 }
 
 
@@ -410,11 +401,11 @@ void FitsViewWidget::setColorTable(FitsViewWidget::ColorTable ct)
 
     if ( !currentImage_buffer ) return;
 
-    QImage im = QImage(currentScaledImage_buffer.get(),currentImage_dim[0],currentImage_dim[1],currentImage_dim[0],QImage::Format_Indexed8);
-    im.setColorTable(currentCT);
+//    QImage im = QImage(currentScaledImage_buffer.get(),currentImage_dim[0],currentImage_dim[1],currentImage_dim[0],QImage::Format_Indexed8);
+//    im.setColorTable(currentCT);
 
-    currentPixmap = QPixmap::fromImage(im);
-    fitsImagePixmapItem->setPixmap(currentPixmap);
+//    currentPixmap = QPixmap::fromImage(im);
+//    fitsImagePixmapItem->setPixmap(currentPixmap);
 
     emit ColorTableIsChanged(ct);
 }
@@ -442,8 +433,8 @@ void FitsViewWidget::centerOn(qreal x, qreal y)
     cen = fitsImagePixmapItem->mapToScene(currentViewedSubImageCenter);
 
 //    view->centerOn(x,y);
-    view->centerOn(cen);
-    qDebug() << "recentering: " << cen;
+    QGraphicsView::centerOn(cen);
+//    qDebug() << "recentering: " << cen;
 }
 
 
@@ -473,7 +464,7 @@ void FitsViewWidget::setZoom(const qreal zoom_factor)
 
     currentZoomFactor = zoom_factor;
     QTransform tr(zoom_factor,0.0,0.0,-zoom_factor,0.0,0.0);
-    view->setTransform(tr);
+    this->setTransform(tr);
 }
 
 
@@ -483,9 +474,9 @@ void FitsViewWidget::incrementZoom(const qreal zoom_inc)
 
     if ( zoom_inc <= 0.0 ) return;
 
-    qDebug() << "inc: " << zoom_inc;
+//    qDebug() << "inc: " << zoom_inc;
 
-    view->scale(zoom_inc,zoom_inc);
+    this->scale(zoom_inc,zoom_inc);
 
     emit zoomIsChanged(zoom_inc);
 
@@ -509,8 +500,8 @@ qreal FitsViewWidget::getZoom() const
 void FitsViewWidget::zoomFitInView()
 {
     // compute zoom factor for entire image viewing
-    qreal xzoom = 1.0*(view->viewport()->width()-2.0*FITS_VIEW_IMAGE_MARGIN)/currentImage_dim[0];
-    qreal yzoom = 1.0*(view->viewport()->height()-2.0*FITS_VIEW_IMAGE_MARGIN)/currentImage_dim[1];
+    qreal xzoom = 1.0*(this->viewport()->width()-2.0*FITS_VIEW_IMAGE_MARGIN)/currentImage_dim[0];
+    qreal yzoom = 1.0*(this->viewport()->height()-2.0*FITS_VIEW_IMAGE_MARGIN)/currentImage_dim[1];
 
     // FITS coordinate system starts from (1,1) and its origin is at the center of pixel
     currentViewedSubImageCenter = QPointF(0.5*currentImage_dim[0]+0.5,0.5*currentImage_dim[1]+0.5);
@@ -525,20 +516,70 @@ void FitsViewWidget::zoomFitInView()
 
         /*  PROTECTED METHODS  */
 
+void FitsViewWidget::mouseMoveEvent(QMouseEvent *event)
+{
+    if ( !currentScaledImage_buffer ) return;
+
+    QPointF pos = this->mapToScene(event->pos());
+
+    pos = fitsImagePixmapItem->mapFromScene(pos);
+
+    if ( pos.x() >= 0.0 && pos.y() >= 0.0 && pos.x() < currentImage_dim[0] && pos.y() < currentImage_dim[1] ) {
+        quint32 x = (quint32)pos.x();
+        quint32 y = (quint32)pos.y();
+
+        pos += QPointF(0.5,0.5); // convert to FITS pixel notation
+
+        double value = currentImage_buffer[x + y*currentImage_dim[0]];
+
+        emit imagePoint(pos,value);
+    }
+
+    if ( rubberBandIsActive && (event->buttons() & Qt::LeftButton) ) {
+
+        rubberBand->setVisible(true);
+        rubberBandIsShown = true;
+
+        pos = this->mapToScene(event->pos());
+
+        rubberBandEnd =  fitsImagePixmapItem->mapFromScene(pos);
+
+        if ( rubberBandEnd.x() < 0 ) {
+            rubberBandEnd.setX(0.0);
+        }
+        if ( rubberBandEnd.y() < 0 ) {
+            rubberBandEnd.setY(0.0);
+        }
+        if ( rubberBandEnd.x() >= currentImage_dim[0] ) {
+            rubberBandEnd.setX(currentImage_dim[0]-1);
+        }
+        if ( rubberBandEnd.y() >= currentImage_dim[1] ) {
+            rubberBandEnd.setY(currentImage_dim[1]-1);
+        }
+
+        rubberBandEnd =  fitsImagePixmapItem->mapToScene(rubberBandEnd);
+
+        rubberBand->setRect(QRectF(rubberBandOrigin, rubberBandEnd).normalized());
+    }
+
+
+//    qDebug() << pos;
+}
+
 
 void FitsViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
 {
     if ( !currentScaledImage_buffer ) return;
 
-    currentViewedSubImageCenter =  view->mapToScene( event->pos() );
+    currentViewedSubImageCenter =  this->mapToScene( event->pos() );
 
-    view->centerOn(currentViewedSubImageCenter);
+    QGraphicsView::centerOn(currentViewedSubImageCenter);
 
-    qDebug() << "doubleClick (mouse pos): " << event->pos();
-    qDebug() << "doubleClick (imcenter scene): " << currentViewedSubImageCenter;
-    qDebug() << "doubleClick: (image pixel)" << fitsImagePixmapItem->mapFromScene(currentViewedSubImageCenter);
+//    qDebug() << "doubleClick (mouse pos): " << event->pos();
+//    qDebug() << "doubleClick (imcenter scene): " << currentViewedSubImageCenter;
+//    qDebug() << "doubleClick: (image pixel)" << fitsImagePixmapItem->mapFromScene(currentViewedSubImageCenter);
 
-    // convert to pixels coordinates
+    // convert to FITS pixels coordinates
     currentViewedSubImageCenter = fitsImagePixmapItem->mapFromScene(currentViewedSubImageCenter) + QPointF(0.5,0.5);
 
 
@@ -555,18 +596,17 @@ void FitsViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
 }
 
 
-//void FitsViewWidget::wheelEvent(QWheelEvent *event)
-//{
-//    qDebug() << "WHEEL!!!";
-//    if ( !currentImage_buffer ) return;
-//    int numDegrees = event->delta() / 8;
+void FitsViewWidget::wheelEvent(QWheelEvent *event)
+{
+    if ( !currentImage_buffer ) return;
+    int numDegrees = event->delta() / 8;
 
-//    int numSteps = numDegrees / 15; // see QWheelEvent documentation
+    int numSteps = numDegrees / 15; // see QWheelEvent documentation
 
-//    qreal factor = 1.0+qreal(numSteps)*0.1;
-//    qDebug() << "factor(wheel) = " << factor;
-//    incrementZoom(factor);
-//}
+    qreal factor = 1.0+qreal(numSteps)*0.1;
+    qDebug() << "factor(wheel) = " << factor;
+    incrementZoom(factor);
+}
 
 
 void FitsViewWidget::mousePressEvent(QMouseEvent *event)
@@ -575,18 +615,76 @@ void FitsViewWidget::mousePressEvent(QMouseEvent *event)
 
     if ( event->button() == Qt::LeftButton ) {
         if ( rubberBandIsShown ) {
-//            scene->removeItem(rubberBand);
+            scene->removeItem(rubberBand);
             rubberBandIsShown = false;
-            emit RegionWasDeselected();
+            emit regionWasDeselected();
         }
 
-        rubberBandOrigin = view->mapToScene(event->pos());
+        rubberBandOrigin = this->mapToScene(event->pos());
+        rubberBandOrigin = fitsImagePixmapItem->mapFromScene(rubberBandOrigin);
+
+        // prevent rectangle conner is out of image
+        if ( rubberBandOrigin.x() < 0 ) {
+            rubberBandOrigin.setX(0.0);
+        }
+        if ( rubberBandOrigin.x() >= currentImage_dim[0] ) {
+            rubberBandOrigin.setX(currentImage_dim[0]-1);
+        }
+
+        if ( rubberBandOrigin.y() < 0 ) {
+            rubberBandOrigin.setY(0.0);
+        }
+        if ( rubberBandOrigin.y() >= currentImage_dim[1] ) {
+            rubberBandOrigin.setY(currentImage_dim[1]-1);
+        }
+
+        rubberBandOrigin = fitsImagePixmapItem->mapToScene(rubberBandOrigin);
+
+        rubberBandEnd = QPointF(rubberBandOrigin);
+        rubberBand = scene->addRect(QRectF(rubberBandOrigin, QSize()),rubberBandPen);
+
+        rubberBand->setVisible(false);
+        rubberBandIsActive = true;
     }
+
+    if ( event->button() == Qt::RightButton ) {
+        if ( rubberBandIsShown ) {
+            scene->removeItem(rubberBand);
+            rubberBandIsActive = false;
+            rubberBandIsShown = false;
+            emit regionWasDeselected();
+
+            double lcut, hcut;
+
+            // create pixels sample
+            std::vector<double> sample;
+
+            QRectF region = fitsImagePixmapItem->mapFromScene(rubberBand->rect()).boundingRect();
+            getSubImage(sample,region);
+            computeCuts(sample,&lcut,&hcut);
+            rescale(lcut,hcut);
+        }
+    }
+
 }
 
 
 void FitsViewWidget::mouseReleaseEvent(QMouseEvent *event)
 {
+    if ( event->button() == Qt::LeftButton ) {
+        if ( rubberBandIsShown ) {
+            rubberBandIsActive = false;
+            QRectF rect = rubberBand->rect().normalized();
+            rect = fitsImagePixmapItem->mapFromScene(rect).boundingRect();
+
+            // convert to FITS notation: the first pixel has coordinates [1,1] and integer coordinate is at th center of pixel
+
+            rect.setX(rect.x()+0.5);
+            rect.setY(rect.y()+0.5);
+
+            emit regionWasSelected(rect);
+        }
+    }
 }
 
 
@@ -617,6 +715,44 @@ void FitsViewWidget::resizeEvent(QResizeEvent *event)
 }
 
 
+// rect bottom-left coordinates must be in the QPixmap notation!
+// (integer coordinates are at the botom-left conner of pixel and pixels start from 0)
+//void FitsViewWidget::getSubImage(std::vector<double> *subImage, QRectF &rect)
+void FitsViewWidget::getSubImage(std::vector<double> &subImage, QRectF &rect)
+{
+    if ( !currentImage_buffer ) return;
+
+    QRectF area = rect.normalized();
+
+    if ( (area.x() < 0) || (area.y() < 0) ||
+         ((area.x() + area.width()) > currentImage_dim[0]) || ((area.y()+area.height()) > currentImage_dim[1]) ) {
+        currentError = FitsViewWidget::BadRegion;
+        emit fitsViewError(currentError);
+        return;
+    }
+
+
+    quint32 xl = (quint32) area.x();
+    quint32 yl = (quint32) area.y();
+
+    quint32 xr = (quint32) (area.x() + area.width());
+    quint32 yr = (quint32) (area.y() + area.height());
+
+    size_t Npixels = (xr-xl+1)*(yr-yl+1);
+
+//    subImage->resize(Npixels);
+    subImage.resize(Npixels);
+
+    size_t i = 0;
+    for ( quint32 y = yl; y <= yr; ++y ) {
+        quint32 offset = y*currentImage_dim[0];
+        for ( quint32 x = xl; x <= xr; ++x ) {
+            subImage[i++] = currentImage_buffer[offset + x];
+//            subImage->at(i++) = currentImage_buffer[offset + x];
+        }
+    }
+}
+
 
         /*  PRIVATE SLOTS  */
 
@@ -627,7 +763,7 @@ void FitsViewWidget::resizeTimeout()
 //    QRectF rr = view->mapToScene(view->geometry()).boundingRect();
 
     centerOn(currentViewedSubImageCenter);
-    view->invalidateScene();
+    this->invalidateScene();
 
     return;
 
@@ -648,28 +784,27 @@ void FitsViewWidget::changeZoom(qreal factor)
     currentZoomFactor *= factor;
 
     // recompute current viewed sub-image
-    currentViewedSubImage = view->mapToScene(view->viewport()->rect()).boundingRect();
+    currentViewedSubImage = this->mapToScene(this->viewport()->rect()).boundingRect();
     if ( currentViewedSubImage.width() > currentImage_dim[0] ) currentViewedSubImage.setWidth(currentImage_dim[0]);
     if ( currentViewedSubImage.height() > currentImage_dim[1] ) currentViewedSubImage.setHeight(currentImage_dim[1]);
 }
 
 
-void FitsViewWidget::changeCursorPos(QPointF pos)
+void FitsViewWidget::updateFitsPixmap()
 {
-    if ( pos.x() >= 0 && pos.y() >= 0 &&
-         pos.x() < currentImage_dim[0] && pos.y() < currentImage_dim[1] ) {
 
-        uint x = (uint) pos.x();
-        uint y = (uint) pos.y();
+    if ( !currentScaledImage_buffer ) return;
+    if ( !fitsImagePixmapItem ) return;
 
-        // convert coordinates to FITS standard (starting from 1, integer coordinates are at the center of pixel)
-        pos += QPointF(0.5,0.5);
+    // convert to pixmap
+    QImage im = QImage(currentScaledImage_buffer.get(),currentImage_dim[0],currentImage_dim[1],currentImage_dim[0],QImage::Format_Indexed8);
+    im.setColorTable(currentCT);
 
-        double val = currentImage_buffer[currentImage_dim[0]*y + x];
+    currentPixmap = QPixmap::fromImage(im);
 
-        emit imagePoint(pos,val);
-    }
+    fitsImagePixmapItem->setPixmap(currentPixmap);
 }
+
 
 
         /*  PRIVATE METHODS  */
